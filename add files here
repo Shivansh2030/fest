@@ -1,1 +1,205 @@
 
+PI Gateway uses an API definition to route calls to the backend service. You can use an OpenAPI spec that contains specialized annotations to define the desired API Gateway behavior. The OpenAPI spec for this quickstart contains routing instructions to the Cloud Function backend.
+
+From Cloud Shell, navigate back to your home directory:
+cd ~
+Copied!
+Create a new file named openapi2-functions.yaml:
+touch openapi2-functions.yaml
+Copied!
+Copy and paste the contents of the OpenAPI spec shown below into the newly created file:
+# openapi2-functions.yaml
+swagger: '2.0'
+info:
+  title: API_ID description
+  description: Sample API on API Gateway with a Google Cloud Functions backend
+  version: 1.0.0
+schemes:
+  - https
+produces:
+  - application/json
+paths:
+  /hello:
+    get:
+      summary: Greet a user
+      operationId: hello
+      x-google-backend:
+        address: https://us-east1-qwiklabs-gcp-02-bb4c8d8cab1b.cloudfunctions.net/helloGET
+      responses:
+       '200':
+          description: A successful response
+          schema:
+            type: string
+Copied!
+Set the following environment variables:
+export API_ID="hello-world-$(cat /dev/urandom | tr -dc 'a-z' | fold -w ${1:-8} | head -n 1)"
+Copied!
+Run the following commands to replace the variables set in the last step in the OpenAPI spec file:
+sed -i "s/API_ID/${API_ID}/g" openapi2-functions.yaml
+sed -i "s/PROJECT_ID/$PROJECT_ID/g" openapi2-functions.yaml
+Copied!
+Task 3. Creating a gateway
+Now you are ready to create and deploy a gateway on API Gateway.
+
+In the top search bar enter API Gateway and select it from the options that appear.
+
+Click Create Gateway. Then, in the APIs section:
+
+Ensure the Select an API input is set to Create new API.
+For Display Name enter Hello World API
+For API ID, run the following command to once again obtain the API ID and enter it into the API ID field:
+export API_ID="hello-world-$(cat /dev/urandom | tr -dc 'a-z' | fold -w ${1:-8} | head -n 1)"
+echo $API_ID
+Copied!
+In the API Config section:
+Ensure the Select a Config input is set to Create new API config.
+Do the following to upload the openapi2-functions.yaml file previously created.
+In Cloud Shell, run the following command:
+cloudshell download $HOME/openapi2-functions.yaml
+Copied!
+Click Download.
+Note: The file openapi2-functions.yaml is now downloaded to your local machine.
+Select Browse and select the file from the browser's download location:
+Enter Hello World Config in the Display Name field.
+Ensure the Select a Service Account input is set to Compute Engine default service account.
+In the Gateway details Section:
+Enter Hello Gateway in the Display Name field.
+Set the Location drop down to us-east1.
+Click Create Gateway.
+Note: It will take several minutes (~10 minutes) for the Create Gateway operation to complete. To check the status of the creation and deployment process, you can click the Notification icon in the main navigation bar to display a status notification, as shown in the image below. Please ensure that the icon status has a green check next to it before proceeding.
+Click Check my progress to verify the objective.
+Creating a Gateway
+
+
+Testing your API Deployment
+Now you can send requests to your API using the URL generated upon deployment of your gateway.
+
+In Cloud Shell, enter the following command to retrieve the GATEWAY_URL of the newly created API hosted by API Gateway:
+export GATEWAY_URL=$(gcloud api-gateway gateways describe hello-gateway --location us-east1 --format json | jq -r .defaultHostname)
+Copied!
+Run the following command to ensure that the GATEWAY_URL environment variable is set:
+echo $GATEWAY_URL
+Copied!
+If it is not, that means you will need to wait longer for the API Gateway to be deployed.
+
+Run the following curl command and validate that the response returned is Hello World!:
+curl -s -w "\n" https://$GATEWAY_URL/hello
+Copied!
+Task 4. Securing access by using an API key
+To secure access to your API backend, you can generate an API key associated with your project and grant that key access to call your API. To create an API Key you must do the following:
+
+In the Cloud Console, navigate to APIs & Services > Credentials.
+Select Create credentials, then select API Key from the dropdown menu. The API key created dialog box displays your newly created key.
+Create credential drop-down menu.
+
+Click Check my progress to verify the objective.
+Securing Access by Using an API Key
+
+
+Copy the API Key from the dialog, then click on close.
+
+Store the API Key value in Cloud Shell by running the following command:
+
+export API_KEY=REPLACE_WITH_COPIED_API_KEY
+Copied!
+Now, enable the API Key support for your service.
+
+In Cloud Shell, obtain the name of the Managed Service you just created using the following command:
+MANAGED_SERVICE=$(gcloud api-gateway apis list --format json | jq -r .[0].managedService | cut -d'/' -f6)
+echo $MANAGED_SERVICE
+Copied!
+Then, using the Managed Service name of the API you just created, run this command to enable API key support for the service:
+gcloud services enable $MANAGED_SERVICE
+Copied!
+Modify the OpenAPI Spec to leverage API Key Security
+In this section, modify the API config of the deployed API to enforce an API key validation security policy on all traffic.
+
+Add the security type and securityDefinitions sections to a new file called openapi2-functions2.yaml file as shown below:
+touch openapi2-functions2.yaml
+Copied!
+Copy and paste the contents of the OpenAPI spec shown below into the newly created file:
+# openapi2-functions.yaml
+swagger: '2.0'
+info:
+  title: API_ID description
+  description: Sample API on API Gateway with a Google Cloud Functions backend
+  version: 1.0.0
+schemes:
+  - https
+produces:
+  - application/json
+paths:
+  /hello:
+    get:
+      summary: Greet a user
+      operationId: hello
+      x-google-backend:
+        address: https://us-east1-qwiklabs-gcp-02-bb4c8d8cab1b.cloudfunctions.net/helloGET
+      security:
+        - api_key: []
+      responses:
+       '200':
+          description: A successful response
+          schema:
+            type: string
+securityDefinitions:
+  api_key:
+    type: "apiKey"
+    name: "key"
+    in: "query"
+Copied!
+Run the following commands to replace the variables set in the last step in the OpenAPI spec file:
+sed -i "s/API_ID/${API_ID}/g" openapi2-functions2.yaml
+sed -i "s/PROJECT_ID/$PROJECT_ID/g" openapi2-functions2.yaml
+Copied!
+Download the updated API spec file, you will use it to update the Gateway config in the next step:
+cloudshell download $HOME/openapi2-functions2.yaml
+Copied!
+Click Download.
+Task 5. Create and deploy a new API config to your existing gateway
+Open the API Gateway page in Cloud Console. (Click Navigation Menu > API Gateway.)
+Select your API from the list to view details.
+Select the Gateways tab.
+Select Hello Gateway from the list of available Gateways.
+Click on Edit at the top of the Gateway page.
+Under API Config change the drop down to Create new API config.
+Click Browse in the Upload an API Spec input box and select the openapi2-functions2.yaml file.
+Enter Hello Config for Display Name.
+Select Qwiklabs User Service Account for Select a Service Account.
+Click Update.
+Note: It may take a few minutes for the Update Gateway operation to complete. To check the status of the creation and deployment process, you can click the Notification icon in the main navigation bar to display a status notification, as shown in the image below. Please ensure that the icon status has a green check next to it before proceeding.
+Click Check my progress to verify the objective.
+Create and deploy a new API config to your existing gateway
+
+
+Task 6. Testing calls using your API key
+To test using your API key run the following command:
+export GATEWAY_URL=$(gcloud api-gateway gateways describe hello-gateway --location us-east1 --format json | jq -r .defaultHostname)
+curl -sL $GATEWAY_URL/hello
+Copied!
+You should see a response similar to the following error as an API key was not supplied with the curl call: UNAUTHENTICATED:Method doesn't allow unregistered callers (callers without established identity). Please use API Key or other form of API consumer identity to call this API.
+
+Run the following curl command with the key query parameter and use the API key previously created to call the API:
+curl -sL -w "\n" $GATEWAY_URL/hello?key=$API_KEY
+Copied!
+If you do not have the API_KEY environment variable set you can get your API key from the left menu by navigating APIs & Services > Credentials. The key will be available under the API Keys section.
+
+The response returned from the API should now be Hello World!.
+
+Note: You may need to run this command more than once to obtain the desired result.
+Click Check my progress to verify the objective.
+Testing Calls Using Your API Key
+
+
+Congratulations!
+You have successfully protected an API backend with API Gateway. Now you can start onboarding new API clients by generating additional API keys.
+
+Google Cloud training and certification
+...helps you make the most of Google Cloud technologies. Our classes include technical skills and best practices to help you get up to speed quickly and continue your learning journey. We offer fundamental to advanced level training, with on-demand, live, and virtual options to suit your busy schedule. Certifications help you validate and prove your skill and expertise in Google Cloud technologies.
+
+Manual Last Updated October 09, 2024
+
+Lab Last Tested October 09, 2024
+
+Copyright 2024 Google LLC All rights reserved. Google and the Google logo are trademarks of Google LLC. All other company and product names may be trademarks of the respective companies with which they are associated.
+
